@@ -1,0 +1,37 @@
+{
+  "name": "third-eye-360-v2",
+  "version": "2.4.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "predev": "node scripts/check-node.js",
+    "dev": "next dev -H 0.0.0.0",
+    "prebuild": "node scripts/check-node.js",
+    "build": "next build",
+    "prestart": "node scripts/check-node.js",
+    "start": "next start",
+    "lint": "next lint"
+  },
+  "engines": {
+    "node": ">=18.17.0"
+  },
+  "dependencies": {
+    "@reduxjs/toolkit": "^2.8.1",
+    "maplibre-gl": "^5.4.0",
+    "next": "14.2.23",
+    "pannellum": "^2.5.6",
+    "react": "^18",
+    "react-dom": "^18",
+    "react-hot-toast": "^2.6.0",
+    "react-icons": "^5.5.0",
+    "react-map-gl": "^8.0.4",
+    "react-redux": "^9.2.0",
+    "redux": "^5.0.1"
+  },
+  "devDependencies": {
+    "eslint": "^8",
+    "eslint-config-next": "14.2.23",
+    "postcss": "^8",
+    "tailwindcss": "^3.4.1"
+  }
+}

@@ -1,0 +1,491 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --background: #f1f5f9;
+  --foreground: #0f172a;
+  --primary: #059669;
+  --primary-light: #34d399;
+  --primary-dark: #047857;
+  --map-point: #22c55e;
+  --map-path: #10b981;
+  --accent: #4cd964;
+  --danger: #ff3b30;
+  --warning: #ffcc00;
+  --success: #34c759;
+  --border-radius-sm: 4px;
+  --border-radius: 8px;
+  --border-radius-lg: 12px;
+  --border-radius-xl: 16px;
+  --border-radius-2xl: 24px;
+  --transition-base: 0.3s;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.12), 0 1px 2px rgba(0, 0, 0, 0.24);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.1), 0 1px 3px rgba(0, 0, 0, 0.08);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.1),
+    0 4px 6px -4px rgba(0, 0, 0, 0.1);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.1),
+    0 8px 10px -6px rgba(0, 0, 0, 0.1);
+  --font-geist-sans: "GeistSans", Arial, sans-serif;
+  --font-geist-mono: "GeistMono", monospace;
+}
+
+.dark {
+  --background: #0f172a;
+  --foreground: #f5f5f5;
+  --primary: #34d399;
+  --primary-light: #6ee7b7;
+  --primary-dark: #10b981;
+  --map-point: #34d399;
+  --map-path: #34d399;
+  --accent: #5ee26b;
+  --danger: #ff453a;
+  --warning: #ffd60a;
+  --success: #30d158;
+  --shadow-sm: 0 1px 3px rgba(0, 0, 0, 0.5), 0 1px 2px rgba(0, 0, 0, 0.6);
+  --shadow: 0 4px 6px rgba(0, 0, 0, 0.4), 0 1px 3px rgba(0, 0, 0, 0.4);
+  --shadow-md: 0 10px 15px -3px rgba(0, 0, 0, 0.8),
+    0 4px 6px -4px rgba(0, 0, 0, 0.8);
+  --shadow-lg: 0 20px 25px -5px rgba(0, 0, 0, 0.8),
+    0 8px 10px -6px rgba(0, 0, 0, 0.8);
+}
+
+body {
+  color: var(--foreground);
+  background: var(--background);
+  font-family: "Plus Jakarta Sans", var(--font-geist-sans), Arial, sans-serif;
+  transition: background-color var(--transition-base) ease,
+    color var(--transition-base) ease;
+}
+
+@layer utilities {
+  .text-balance {
+    text-wrap: balance;
+  }
+
+  /* Smooth hover transitions */
+  .hover-transition {
+    @apply transition-all duration-300 ease-in-out;
+  }
+
+  /* Legacy glass morphism (viewer surfaces) */
+  .glass {
+    @apply bg-white/90 dark:bg-black/90 text-black/90 dark:text-white/90 backdrop-blur-lg border border-white/20;
+  }
+
+  /* v2 glassmorphism panels (from design mockups) */
+  .glass-panel {
+    background: rgba(255, 255, 255, 0.88);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border: 1px solid rgba(255, 255, 255, 0.6);
+  }
+
+  .glass-panel-dark {
+    background: rgba(15, 23, 42, 0.85);
+    backdrop-filter: blur(18px);
+    -webkit-backdrop-filter: blur(18px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+  }
+
+  .dark .glass-panel {
+    background: rgba(15, 23, 42, 0.88);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  /* Brand gradient text */
+  .gradient-text {
+    @apply bg-gradient-to-r from-emerald-600 to-teal-500 bg-clip-text text-transparent;
+  }
+}
+
+/* Sonar pulse ring (guidance card, live indicators) */
+@keyframes pulse-ring {
+  0% {
+    transform: scale(0.95);
+    opacity: 0.8;
+  }
+  50% {
+    transform: scale(1.4);
+    opacity: 0;
+  }
+  100% {
+    transform: scale(0.95);
+    opacity: 0;
+  }
+}
+.sonar-ring {
+  animation: pulse-ring 2.2s cubic-bezier(0.24, 0, 0.38, 1) infinite;
+}
+
+/* Map Marker Styles - Enhanced */
+.marker {
+  width: 30px;
+  height: 30px;
+  position: relative;
+  filter: drop-shadow(0 3px 5px rgba(0, 0, 0, 0.2));
+}
+
+.marker-pin {
+  width: 30px;
+  height: 30px;
+  background-color: #ff4545;
+  border: 3px solid white;
+  border-radius: 50%;
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.4);
+  cursor: pointer;
+  transition: transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1),
+    box-shadow 0.3s ease, background-color 0.3s ease;
+}
+
+.dark .marker-pin {
+  border-color: #333;
+}
+
+.marker:hover .marker-pin {
+  transform: scale(0.8);
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.5);
+}
+
+.dark .marker:hover .marker-pin {
+  box-shadow: 0 3px 10px rgba(0, 0, 0, 0.6);
+}
+
+.selected-marker .marker-pin {
+  background-color: #059669;
+  transform: scale(0.7);
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.7);
+}
+
+.dark .selected-marker .marker-pin {
+  box-shadow: 0 0 15px rgba(16, 185, 129, 0.8);
+}
+
+/* Directional View Indicator */
+.directional-indicator {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform-origin: center center;
+  transition: transform 0.3s ease;
+  pointer-events: none;
+  z-index: 2;
+  transform: translate(-50%, -50%);
+}
+
+.direction-arrow {
+  width: 5px;
+  height: 26px;
+  position: relative;
+  border-radius: 10px;
+  filter: drop-shadow(0 1px 3px rgba(0, 0, 0, 0.3));
+}
+
+.direction-arrow::before {
+  content: "";
+  position: absolute;
+  top: -7px;
+  left: -3px;
+  width: 0;
+  height: 0;
+  border-left: 6px solid transparent;
+  border-right: 6px solid transparent;
+  border-bottom: 10px solid #059669;
+}
+
+.dark .direction-arrow {
+  background: linear-gradient(to top, #34d399, rgba(52, 211, 153, 0.3));
+}
+
+.dark .direction-arrow::before {
+  border-bottom-color: #34d399;
+}
+
+/* Image Viewer Styles */
+.panorama-container {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  box-shadow: var(--shadow-lg);
+}
+
+.panorama-image {
+  transition: transform 0.5s cubic-bezier(0.23, 1, 0.32, 1);
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+.fade-in {
+  animation: fadeIn 0.5s ease-in forwards;
+}
+
+/* Fade in and out animation for temporary elements */
+@keyframes fadeInOut {
+  0% {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  85% {
+    opacity: 1;
+    transform: translateY(0);
+  }
+  100% {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+}
+
+.animate-fade-in-out {
+  animation: fadeInOut 5s ease-in-out forwards;
+}
+
+/* Slide in animation */
+@keyframes slideIn {
+  from {
+    transform: translateY(20px);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.slide-in {
+  animation: slideIn 0.4s ease-out forwards;
+}
+
+/* Scale in animation */
+@keyframes scaleIn {
+  from {
+    transform: scale(0.9);
+    opacity: 0;
+  }
+  to {
+    transform: scale(1);
+    opacity: 1;
+  }
+}
+
+.scale-in {
+  animation: scaleIn 0.3s ease-out forwards;
+}
+
+/* Modern scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #666;
+}
+
+.dark ::-webkit-scrollbar-thumb {
+  background: #555;
+}
+
+.dark ::-webkit-scrollbar-thumb:hover {
+  background: #777;
+}
+
+/* Responsive Design */
+@media (max-width: 768px) {
+  .controls-container {
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .hide-on-mobile {
+    display: none !important;
+  }
+
+  h1,
+  h2 {
+    font-size: 90%;
+  }
+}
+
+/* Pulsing animation for nearby points */
+@keyframes nearby-point-pulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 51, 68, 0.7);
+  }
+
+  70% {
+    transform: scale(1.1);
+    box-shadow: 0 0 0 10px rgba(255, 51, 68, 0);
+  }
+
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(255, 51, 68, 0);
+  }
+}
+
+.nearby-point {
+  animation: nearby-point-pulse 2s infinite;
+}
+
+/* POI Marker spreading animation */
+@keyframes markerSpread {
+  0% {
+    opacity: 0;
+    transform: translate(0, 0) scale(0.7);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(1.1);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+.marker-container.animated {
+  opacity: 0;
+}
+
+/* Make sure marker icons have proper hover effects */
+.marker-container svg {
+  transition: all 0.2s ease-out;
+}
+
+.marker-container:hover svg {
+  filter: drop-shadow(0 0 3px rgba(0, 0, 0, 0.4));
+}
+
+/* NOTE: pannellum hotspot / viewer nav styles live in
+   ./styles/pannellum-hotspots.css and are imported by ImageViewer.js */
+
+/* ==========================================================================
+   360° Viewer HUD - dark enterprise frosted glass (from panoroma_picture.html)
+   ========================================================================== */
+
+/* Apple / Linear grade dark frosted glass dock */
+.glass-dock {
+  background: rgba(15, 23, 42, 0.78);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  box-shadow: 0 20px 50px -10px rgba(0, 0, 0, 0.55),
+    inset 0 1px 0 rgba(255, 255, 255, 0.1);
+}
+
+/* Glass action button with emerald hover glow */
+.glass-btn {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.glass-btn:hover {
+  background: rgba(255, 255, 255, 0.16);
+  border-color: rgba(52, 211, 153, 0.45);
+  color: #ffffff;
+  box-shadow: 0 0 16px -2px rgba(16, 185, 129, 0.35);
+}
+
+/* Radar FOV pulse */
+@keyframes pulseCone {
+  0%,
+  100% {
+    opacity: 0.6;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.9;
+    transform: scale(1.04);
+  }
+}
+
+.fov-cone {
+  animation: pulseCone 3s infinite ease-in-out;
+  transform-origin: center center;
+}
+
+/* Floor chevron sonar pulse */
+@keyframes floorRingPulse {
+  0% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+  50% {
+    transform: scale(1.15);
+    opacity: 0.25;
+  }
+  100% {
+    transform: scale(0.92);
+    opacity: 0.85;
+  }
+}
+
+.floor-sonar {
+  animation: floorRingPulse 2.4s infinite cubic-bezier(0.25, 1, 0.5, 1);
+}
+
+/* Right-click coordinates popup (maplibre popup shell for .coords-popup) */
+.coords-popup .maplibregl-popup-content {
+  padding: 12px;
+  border-radius: 12px;
+  box-shadow: 0 12px 32px rgba(0, 0, 0, 0.18);
+}
+
+/* shadow-floating carries a white 1px ring (80% opacity) for the light
+   theme — on the dark basemap it reads as a stray white outline around every
+   glass card (search bar, layer controls, node card, toolbox). Swap to the
+   dark ring in dark mode; :not(:hover) keeps hover:shadow-* working. */
+.dark .shadow-floating:not(:hover) {
+  box-shadow: 0 20px 45px -15px rgba(0, 0, 0, 0.6),
+    0 0 0 1px rgba(255, 255, 255, 0.06);
+}
+
+/* Panorama frame-freeze overlay: shown while the next capture's WebGL
+   context rebuilds, then faded out (Mapillary-style dissolve). Inserted
+   imperatively by PannellumViewer.beginFrameFade — MUST render on the first
+   paint after insertion, hence plain CSS, no React. */
+.pano-fade-overlay {
+  position: absolute;
+  inset: 0;
+  z-index: 60;
+  pointer-events: none;
+  overflow: hidden;
+  background: #000;
+  opacity: 1;
+  transition: opacity 350ms ease-out;
+}
+
+.pano-fade-overlay img {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  /* At the default 75 deg hfov a 360 pano shows ~21% of the strip width —
+     draw the frozen frame at that scale so it matches the live view. */
+  width: 480%;
+  max-width: none;
+}
