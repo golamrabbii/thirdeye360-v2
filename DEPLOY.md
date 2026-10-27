@@ -9,7 +9,7 @@ Created 2026-10-25 from `backend/` and `frontend_v2/`.
 |---|---|---|
 | v1 (existing, untouched) | `streetview.bmapsbd.com/` and `/api` | — |
 | v2 frontend | `streetview.bmapsbd.com/v2` | Next.js on **port 3005** (`basePath: /v2`) |
-| v2 backend | `streetview.bmapsbd.com/api/v2` | FastAPI on **port 8002** (`API_PORT=8002`) |
+| v2 backend | `streetview.bmapsbd.com/api/v2` | FastAPI on **port 8001** (default port) |
 
 When v2 eventually replaces v1: remove `basePath` from `next.config.mjs`,
 rebuild, move nginx `location /` to Next and `location /api` to the v2 backend.
@@ -20,7 +20,7 @@ rebuild, move nginx `location /` to Next and `location /api` to the v2 backend.
 cd backend
 python3 -m venv venv                 # do NOT copy a venv between machines (absolute paths break)
 ./venv/bin/pip install -r requirements.txt
-API_PORT=8002 ./venv/bin/python run_api.py
+./venv/bin/python run_api.py        # default port 8001
 ```
 
 System requirements: Python 3.12+, PostgreSQL (restore the `third_eye` database),
@@ -47,7 +47,7 @@ PORT=3005 npm start
 # v2 backend — rewrite strips ONLY /v2 so FastAPI receives its native /api/... paths
 location /api/v2/ {
     rewrite ^/api/v2(/.*)$ /api$1 break;
-    proxy_pass http://127.0.0.1:8002;      # no trailing slash
+    proxy_pass http://127.0.0.1:8001;      # no trailing slash
     proxy_http_version 1.1;
     proxy_set_header Host $host;
     proxy_set_header X-Real-IP $remote_addr;
@@ -79,6 +79,15 @@ server, copy these from the project machine (they are not in the repo):
 
 `tiledata/`, `temp_uploads/`, `r2_cache/` are gitignored but recreated/
 populated automatically at runtime.
+
+## Backend routing fact (verified 2026-10-27)
+
+api.py creates the app with `FastAPI(root_path="/api")`, so routes declared as
+`/api/x` are served on the wire at `/api/api/x` (the "doubled prefix"). The
+frontend appends `/api/...` itself, so browser URLs are `/api/v2/api/...`; the
+nginx rewrite strips only `/v2`, landing on `/api/api/...` — verified 58/58
+routes reachable, 0 routing failures. `/health` lives at the ROOT (`/health`,
+no /api) — for uptime probes target `http://127.0.0.1:8001/health` directly.
 
 ## Notes
 
