@@ -108,3 +108,9 @@ soft_*.py
 # Large binaries
 ffmpeg
 ffprobe
+
+# Runtime caches / local tooling
+r2_cache/
+tmp/
+.claude/
+venv_broken_backup/

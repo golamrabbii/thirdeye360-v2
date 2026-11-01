@@ -1080,10 +1080,18 @@ def r2_proxy(file_key: str, request: Request):
 
     # store_stream tees the body into the disk cache when enabled; with the
     # cache off it is a pass-through generator (zero behavior change).
+    body = obj["Body"].iter_chunks()
+    if status == 206:
+        # Partial (Range) content must never enter the disk cache — caching
+        # it would poison the key with a truncated "full" object that later
+        # hits serve as complete.
+        stream = body
+    else:
+        stream = image_disk_cache.store_stream(
+            file_key, body, etag=obj.get("ETag", "")
+        )
     return StreamingResponse(
-        image_disk_cache.store_stream(
-            file_key, obj["Body"].iter_chunks(), etag=obj.get("ETag", "")
-        ),
+        stream,
         status_code=status,
         media_type="image/jpeg",
         headers=headers,
@@ -1366,8 +1374,22 @@ def _build_features_export():
         # ✅ Save to disk — compact (no indent): the file is streamed verbatim
         # by /api/features, so every byte saved is transfer saved.
         os.makedirs(os.path.dirname(EXPORT_PATH), exist_ok=True)
-        with open(EXPORT_PATH, "w", encoding="utf-8") as f:
-            json.dump(geojson, f, ensure_ascii=False, separators=(",", ":"))
+        # Atomic write: never truncate the live export in place. Readers
+        # (FileResponse) must always see either the old or the new complete
+        # file; a failed rebuild leaves the previous export untouched.
+        tmp_path = f"{EXPORT_PATH}.tmp"
+        try:
+            with open(tmp_path, "w", encoding="utf-8") as f:
+                json.dump(geojson, f, ensure_ascii=False, separators=(",", ":"))
+                f.flush()
+                os.fsync(f.fileno())
+            os.replace(tmp_path, EXPORT_PATH)
+        except Exception:
+            try:
+                os.remove(tmp_path)
+            except OSError:
+                pass
+            raise
 
         return geojson
 
@@ -5053,7 +5075,7 @@ async def upload_zip_stream(
 # ---------------------------------------------------------------------------
 
 @app.get("/api/timeline")
-async def get_timeline(
+def get_timeline(
     lat: float = Query(..., ge=-90, le=90),
     lng: float = Query(..., ge=-180, le=180),
     radius: float = Query(25.0, ge=5.0, le=150.0),
@@ -5160,7 +5182,7 @@ async def get_timeline(
 # ---------------------------------------------------------------------------
 
 @app.get("/api/tracks/{track_number}/manifest")
-async def get_track_manifest(
+def get_track_manifest(
     track_number: str,
     include: str = Query("ids", pattern="^(ids|urls)$"),
 ):
@@ -5185,10 +5207,10 @@ async def get_track_manifest(
                        COALESCE(initial_yaw, 0),
                        image_url_comp, image_url_high
                 FROM image_features_4
-                WHERE feature_id LIKE %s AND is_deleted = FALSE
+                WHERE feature_id LIKE %s ESCAPE '\\' AND is_deleted = FALSE
                 ORDER BY CAST(SPLIT_PART(feature_id, '_', 2) AS INTEGER)
                 """,
-                (f"{track_number}_%",),
+                (f"{track_number}\\_%",),
             )
             rows = cursor.fetchall()
     except Exception as e:
