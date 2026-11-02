@@ -80,6 +80,13 @@ populated automatically at runtime.
 - **Env precedence gotcha:** in a Next.js build `.env.local` WINS over
   `.env.production`. This repo deliberately contains NO `.env.local` — never
   add one to this folder, or a build will silently bake dev values.
+- **`npm run dev` does NOT read `.env.production`** (production-only file).
+  Dev mode falls back to `http://localhost:8001` (hardcoded in
+  `app/config/api.js`) unless a `.env.local` exists. If you must run dev mode
+  on the server, create `.env.local` with the SAME production values as
+  `.env.production` (keep them in sync — see the precedence gotcha), then
+  restart the dev server. For serving users, always use
+  `npm run build && PORT=3005 npm start`.
 - Over plain-HTTP access the app uses the execCommand clipboard fallback;
   behind HTTPS (this domain) the native clipboard API is used everywhere.
 - `/health` is at the app ROOT (`/health`) — for uptime probes target
