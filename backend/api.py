@@ -420,7 +420,11 @@ def process_upload_job(job_id: str, upload_id: str, zip_path: str, project_dir: 
 # ======================
 # FASTAPI APP
 # ======================
-app = FastAPI(root_path="/api")
+# NOTE: no root_path — production nginx (location /api/ with a trailing-slash
+# proxy_pass) strips one "/api/" before requests reach the app, so the app
+# serves its declared paths ("/api/features", "/api/r2-proxy/{key}", ...) as-is.
+# Public URLs keep the doubled shape: /api/api/r2-proxy/... -> app sees /api/r2-proxy/...
+app = FastAPI()
 
 
 @app.on_event("startup")

@@ -7,12 +7,22 @@ Created 2026-10-25 from `backend/` and `frontend_v2/`.
 
 | What | Public URL | Internal |
 |---|---|---|
-| v1 (existing, untouched) | `streetview.bmapsbd.com/` and `/api` | — |
-| v2 frontend | `streetview.bmapsbd.com/v2` | Next.js on **port 3005** (`basePath: /v2`) |
-| v2 backend | `streetview.bmapsbd.com/api/v2` | FastAPI on **port 8001** (default port) |
+| v1 frontend (untouched) | `streetview.bmapsbd.com/` | `localhost:8019` |
+| v2 frontend | `streetview.bmapsbd.com/v2` | Next.js on **port 3005** (`basePath: "/v2"`) |
+| v2 backend | `streetview.bmapsbd.com/api/api/...` (same public shape as v1) | FastAPI on the port nginx's `location /api/` points at (**8002** in current nginx) |
 
-When v2 eventually replaces v1: remove `basePath` from `next.config.mjs`,
-rebuild, move nginx `location /` to Next and `location /api` to the v2 backend.
+**Backend routing contract (2026-11-02):** `api.py` creates the app with
+`FastAPI()` — NO `root_path`. nginx's `location /api/` uses a trailing-slash
+`proxy_pass`, which strips one `/api/`; the app therefore serves its declared
+paths (`/api/features`, `/api/r2-proxy/{key}`, ...) directly. Public URLs keep
+the doubled shape `/api/api/...` (v1's existing contract) — both frontends
+append `/api/...` to a base ending in `/api`.
+
+The frontend `.env.production` is `https://streetview.bmapsbd.com/api` — so no
+`/api/v2` nginx block exists or is needed.
+
+When v2 replaces v1 entirely: remove `basePath` from `next.config.mjs`,
+rebuild, repoint `location /` to Next. `location /api/` already points at v2.
 
 ## Backend — server setup
 
@@ -20,7 +30,7 @@ rebuild, move nginx `location /` to Next and `location /api` to the v2 backend.
 cd backend
 python3 -m venv venv                 # do NOT copy a venv between machines (absolute paths break)
 ./venv/bin/pip install -r requirements.txt
-./venv/bin/python run_api.py        # default port 8001
+./venv/bin/python run_api.py         # port from API_PORT env (default 8001)
 ```
 
 System requirements: Python 3.12+, PostgreSQL (restore the `third_eye` database),
@@ -30,8 +40,10 @@ Runtime dirs (`tmp/`, `logs/`) are created automatically on first run.
 
 ## Frontend — build & run
 
-`next.config.mjs` already has `basePath: "/v2"` and `.env.production` already
-holds the production API URLs — both committed, nothing to fill in.
+`next.config.mjs` has `basePath: "/v2"`; `.env.production` holds the API base
+`https://streetview.bmapsbd.com/api`. Both committed — nothing to fill in.
+**Any env/config change requires a rebuild** (`NEXT_PUBLIC_*` and basePath are
+baked in at build time).
 
 ```bash
 cd frontend
@@ -41,62 +53,36 @@ npm run build
 PORT=3005 npm start
 ```
 
-## nginx (inside the streetview.bmapsbd.com server block, alongside v1)
+## nginx — NO v2-specific block needed
 
-```nginx
-# v2 backend — rewrite strips ONLY /v2 so FastAPI receives its native /api/... paths
-location /api/v2/ {
-    rewrite ^/api/v2(/.*)$ /api$1 break;
-    proxy_pass http://127.0.0.1:8001;      # no trailing slash
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Real-IP $remote_addr;
-    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 3600s;
-    client_max_body_size 2G;               # nginx default 1M breaks zip uploads
-}
+The existing config already works as-is:
+- `location /v2` → `192.168.10.105:3005` (frontend; keep the /v2 prefix — no trailing slash on proxy_pass)
+- `location /api/` → `192.168.10.105:8002/` (backend; trailing slash strips one /api/ — required)
+- `location /` → v1, untouched
 
-# v2 frontend
-location = /v2 { return 301 /v2/; }
-location /v2/ {
-    proxy_pass http://127.0.0.1:3005;      # no trailing slash — Next expects /v2 prefix
-    proxy_http_version 1.1;
-    proxy_set_header Host $host;
-    proxy_set_header X-Forwarded-Proto $scheme;
-    proxy_read_timeout 300s;
-}
-```
+Optional niceties: `location = /v2 { return 301 /v2/; }`, and
+`proxy_set_header Host $host;` in the /v2 block.
 
 ## Data files & this repo
 
 `.gitignore` keeps secrets and oversized files OUT of git. After cloning on a
 server, copy these from the project machine (they are not in the repo):
 
-- `backend/features.geojson`  (410 MB — GitHub rejects files > 100 MB)
+- `backend/features.geojson`  (~318 MB — GitHub rejects files > 100 MB)
 - `backend/.env`              (live credentials)
 - `backend/uploads/` content  (user panoramas, if any must be preserved)
 
 `tiledata/`, `temp_uploads/`, `r2_cache/` are gitignored but recreated/
 populated automatically at runtime.
 
-## Backend routing fact (verified 2026-10-27)
-
-api.py creates the app with `FastAPI(root_path="/api")`, so routes declared as
-`/api/x` are served on the wire at `/api/api/x` (the "doubled prefix"). The
-frontend appends `/api/...` itself, so browser URLs are `/api/v2/api/...`; the
-nginx rewrite strips only `/v2`, landing on `/api/api/...` — verified 58/58
-routes reachable, 0 routing failures. `/health` lives at the ROOT (`/health`,
-no /api) — for uptime probes target `http://127.0.0.1:8001/health` directly.
-
 ## Notes
 
 - **Env precedence gotcha:** in a Next.js build `.env.local` WINS over
   `.env.production`. This repo deliberately contains NO `.env.local` — never
   add one to this folder, or a build will silently bake dev values.
-- `NEXT_PUBLIC_*` variables are inlined into the JS bundle at BUILD time;
-  changing env on the server afterwards has no effect — rebuild required.
-- `.env.production` holds only public URLs (no secrets) and is committed so
-  server builds are reproducible.
 - Over plain-HTTP access the app uses the execCommand clipboard fallback;
   behind HTTPS (this domain) the native clipboard API is used everywhere.
+- `/health` is at the app ROOT (`/health`) — for uptime probes target
+  `http://127.0.0.1:<backend-port>/health` directly (through nginx it would
+  need `https://streetview.bmapsbd.com/api/health`, which does not exist —
+  only `/api/api/...` app routes are public).
