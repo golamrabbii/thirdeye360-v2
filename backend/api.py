@@ -580,12 +580,11 @@ async def general_exception_handler(request: Request, exc: Exception):
     )
 
     # For upload requests, provide more detailed error information
+    # (no request headers here — they carry the admin Authorization token)
     if _is_upload_zip_path(request):
         logger.error(
             f"=== UPLOAD EXCEPTION DETAILS ===\n"
             f"Request Path: {request.url.path}\n"
-            f"Headers: {dict(request.headers)}\n"
-            f"Query Params: {dict(request.query_params)}\n"
             f"Exception: {type(exc).__name__}: {str(exc)}\n"
             f"============================"
         )
@@ -613,34 +612,11 @@ async def general_exception_handler(request: Request, exc: Exception):
 # Setup request logging middleware (should be first)
 setup_request_logging(app, slow_threshold_ms=2000.0)
 
-# Add custom middleware for debugging upload requests
-@app.middleware("http")
-async def debug_upload_requests(request: Request, call_next):
-    """Debug middleware specifically for upload requests"""
-    if _is_upload_zip_path(request):
-        print("\n" + "=" * 60)
-        print("UPLOAD REQUEST DEBUG INFO")
-        print("=" * 60)
-        print(f"URL: {request.url}")
-        print(f"Method: {request.method}")
-        print(f"Headers: {dict(request.headers)}")
-        print(f"Query Params: {dict(request.query_params)}")
-        print(f"Client: {request.client}")
-        print("=" * 60 + "\n")
-
-        logger.info(
-            f"Upload request received: {request.method} {request.url.path}\n"
-            f"Headers: {dict(request.headers)}\n"
-            f"Query Params: {dict(request.query_params)}"
-        )
-
-    response = await call_next(request)
-
-    if _is_upload_zip_path(request):
-        print(f"Response status: {response.status_code}")
-        logger.info(f"Upload response status: {response.status_code}")
-
-    return response
+# (Upload-request debug middleware removed 2026-11-03: it dumped every request
+# header — including the admin Authorization token — to stdout and the logs on
+# every upload-zip call (GitHub issue #4). middleware_logging.py already logs
+# uploads with only non-sensitive fields: request id, method, endpoint, client
+# IP, content-type, content-length, user-agent.)
 
 # CORS: explicit origin whitelist for production. Set ALLOW_ALL_ORIGINS=true
 # ONLY in local development - wildcard origins must never ship with credentials enabled.
