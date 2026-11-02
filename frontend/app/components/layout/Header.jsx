@@ -264,7 +264,7 @@ export default function Header({ showDarkModeToggle = true }) {
           <>
             {/* Upload 360° — dedicated page in a new tab (admins only) */}
             {isAdmin && (
-            <a
+            <Link
               href='/upload'
               target='_blank'
               rel='noopener noreferrer'
@@ -284,7 +284,7 @@ export default function Header({ showDarkModeToggle = true }) {
                 />
               </svg>
               <span className='hidden sm:inline'>Upload 360°</span>
-            </a>
+            </Link>
             )}
             {/* Logged-in User Profile Pill */}
             <div className='relative' ref={profileRef}>
