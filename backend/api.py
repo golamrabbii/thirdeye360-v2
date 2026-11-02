@@ -3055,7 +3055,7 @@ async def get_district_coverage(
 
 
 @app.get("/api/coverage/daily")
-async def get_daily_coverage(
+def get_daily_coverage(
     start_date: Optional[str] = None,
     end_date: Optional[str] = None,
 ):
