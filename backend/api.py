@@ -2477,7 +2477,7 @@ async def get_coverage_stats(
         logger.error(f"Error getting coverage stats: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/coverage/calculate/{track_number}")
+@app.post("/api/coverage/calculate/{track_number}", dependencies=[Depends(require_admin)])
 async def calculate_track_coverage(
     track_number: str,
     start_date: Optional[str] = None,
@@ -2486,12 +2486,25 @@ async def calculate_track_coverage(
     """
     Calculate distance coverage for a SINGLE track and cache it.
     Use this to calculate tracks one-by-one instead of all at once.
-    
+
+    Admin permission required.
     Parameters:
     - track_number: Track number to calculate (e.g., "1", "37")
     - start_date: Optional start date filter (YYYY-MM-DD format)
     - end_date: Optional end date filter (YYYY-MM-DD format)
     """
+    return await asyncio.to_thread(
+        _calculate_track_coverage_impl, track_number, start_date, end_date
+    )
+
+
+def _calculate_track_coverage_impl(
+    track_number: str,
+    start_date: Optional[str] = None,
+    end_date: Optional[str] = None,
+):
+    """Sync core of calculate_track_coverage — shared by the endpoint and the
+    calculate-all background fan-out (in-process threadpool, no loopback HTTP)."""
     try:
         from geopy.distance import geodesic
         from datetime import datetime
@@ -2606,7 +2619,7 @@ async def calculate_track_coverage(
         logger.error(f"Error calculating coverage for track {track_number}: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/coverage/calculate-all")
+@app.post("/api/coverage/calculate-all", dependencies=[Depends(require_admin)])
 async def calculate_all_tracks_coverage(
     background_tasks: BackgroundTasks,
     start_date: Optional[str] = None,
@@ -2652,31 +2665,23 @@ async def calculate_all_tracks_coverage(
                 batch = track_numbers[i:i+batch_size]
                 logger.info(f"Processing batch {i//batch_size + 1}: tracks {batch}")
                 
-                # Create client ONCE for the entire batch
-                async with httpx.AsyncClient(timeout=300.0) as client:
-                    # Calculate each track in batch concurrently
-                    tasks = []
-                    for track_num in batch:
-                        # Use internal HTTP call to the single-track endpoint
-                        url = f"{Config.API_BASE_URL}/api/coverage/calculate/{track_num}"
-                        if start_date or end_date:
-                            params = {}
-                            if start_date:
-                                params['start_date'] = start_date
-                            if end_date:
-                                params['end_date'] = end_date
-                            url += "?" + "&".join([f"{k}={v}" for k, v in params.items()])
-                        
-                        tasks.append(client.post(url))
-                    
-                    # Wait for batch to complete (inside the async with block)
-                    results = await asyncio.gather(*tasks, return_exceptions=True)
-                    
-                    for track_num, result in zip(batch, results):
-                        if isinstance(result, Exception):
-                            logger.error(f"Failed to calculate track{track_num}: {result}")
-                        else:
-                            logger.info(f"Calculated track{track_num}")
+                # Calculate each track in the batch concurrently, in-process
+                # (threadpool). The old loopback-HTTP fan-out cannot carry the
+                # admin gate on the single-track endpoint.
+                tasks = [
+                    asyncio.to_thread(
+                        _calculate_track_coverage_impl, track_num, start_date, end_date
+                    )
+                    for track_num in batch
+                ]
+
+                results = await asyncio.gather(*tasks, return_exceptions=True)
+
+                for track_num, result in zip(batch, results):
+                    if isinstance(result, Exception):
+                        logger.error(f"Failed to calculate track{track_num}: {result}")
+                    else:
+                        logger.info(f"Calculated track{track_num}")
             
             logger.info("Background calculation completed!")
         
@@ -2696,7 +2701,7 @@ async def calculate_all_tracks_coverage(
         logger.error(f"Error starting background calculation: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
 
-@app.post("/api/coverage/clear-cache")
+@app.post("/api/coverage/clear-cache", dependencies=[Depends(require_admin)])
 async def clear_coverage_cache(track_number: Optional[str] = None):
     """
     Clear the coverage calculation cache.
@@ -3301,7 +3306,7 @@ async def delete_features_batch(request: DeleteFeaturesRequest, background_tasks
 # ======================
 # RECALCULATE SNAPPED COORDINATES ENDPOINTS
 # ======================
-@app.post("/api/recalculate-snapped-coords")
+@app.post("/api/recalculate-snapped-coords", dependencies=[Depends(require_admin)])
 async def recalculate_snapped_coords(request: RecalculateSnapRequest, background_tasks: BackgroundTasks):
     """
     Recalculate snapped coordinates for multiple tracks by calling snap-to-road API.
@@ -3665,7 +3670,7 @@ async def verify_features_deletion(request: DeleteFeaturesRequest):
             conn.close()
 
 
-@app.post("/api/features/update-capture-dates")
+@app.post("/api/features/update-capture-dates", dependencies=[Depends(require_admin)])
 async def update_capture_dates(background_tasks: BackgroundTasks):
     """
     Update capture_date column in database using the capture dates API
