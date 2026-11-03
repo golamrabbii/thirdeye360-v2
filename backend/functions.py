@@ -1565,11 +1565,11 @@ def calculate_track_distance(track_name):
         
         # Get all points for the track in sequence order
         cursor.execute("""
-            SELECT latitude_snapped, longitude_snapped 
-            FROM image_features_4 
-            WHERE feature_id LIKE %s 
+            SELECT latitude_snapped, longitude_snapped
+            FROM image_features_4
+            WHERE feature_id LIKE %s ESCAPE '\\'
             ORDER BY CAST(SPLIT_PART(feature_id, '_', 2) AS INTEGER)
-        """, (f"{track_num}_%",))
+        """, (f"{track_num}\\_%",))
         
         points = cursor.fetchall()
         
@@ -1741,10 +1741,10 @@ def update_capture_dates_in_db():
             if track_num in capture_dates and capture_dates[track_num]:
                 # Update ALL records for this track with the actual datetime
                 cursor.execute("""
-                    UPDATE image_features_4 
+                    UPDATE image_features_4
                     SET capture_date = %s::TIMESTAMPTZ
-                    WHERE feature_id LIKE %s
-                """, (capture_dates[track_num], f"{track_num}_%"))
+                    WHERE feature_id LIKE %s ESCAPE '\\'
+                """, (capture_dates[track_num], f"{track_num}\\_%"))
                 
                 updated_count += cursor.rowcount
                 logger.info(f"Updated {cursor.rowcount} records for track {track_num} with datetime: {capture_dates[track_num]}")

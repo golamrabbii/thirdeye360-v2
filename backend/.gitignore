@@ -114,3 +114,6 @@ r2_cache/
 tmp/
 .claude/
 venv_broken_backup/
+
+# Security review (details exploitable endpoints — never commit to the public repo)
+CODE_REVIEW_FINDINGS.md

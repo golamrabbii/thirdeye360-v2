@@ -824,6 +824,11 @@ def image_proxy(feature_id: str, quality: str = Query("comp", description="Image
     except Exception as e:
         logger.error(f"Error in image_proxy for {feature_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=f"Internal server error: {str(e)}")
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 @app.get("/api/r2-image/{feature_id}")
@@ -1435,7 +1440,7 @@ async def debug_filesystem():
 
 
 @app.get("/api/features/merge-all")
-async def merge_all_tracks():
+def merge_all_tracks():
     try:
         merged_path = os.path.join(BASE_DIR, "merged_data.json")
         
@@ -1525,7 +1530,7 @@ async def upload_and_process_zip(
         logger.info(f"Processing ZIP: {upload_file.filename} ({zip_size / (1024*1024):.1f}MB)")
 
         # Extract and process images in parallel (thread-pooled exiftool)
-        rows = extract_and_scan_zip_parallel(zip_temp_path)
+        rows = await asyncio.to_thread(extract_and_scan_zip_parallel, zip_temp_path)
         results = [
             {
                 "name": str(r["name"]),
@@ -1628,7 +1633,7 @@ async def upload_zip_for_map(
         # Extract and process images in parallel (thread-pooled exiftool).
         # Individual unreadable images are recorded without GPS and never
         # abort the scan.
-        rows = extract_and_scan_zip_parallel(zip_path)
+        rows = await asyncio.to_thread(extract_and_scan_zip_parallel, zip_path)
         results = [
             {
                 "name": str(r["name"]),
@@ -1762,7 +1767,7 @@ async def get_recent_update_logs(hours: int = 24):
             conn.close()
 
 @app.get("/api/features/all-images", response_model=dict)
-async def get_all_images():
+def get_all_images():
     """
     Returns the complete merged GeoJSON data containing all images from all tracks.
     Returns the JSON data directly rather than as a file download.
@@ -2278,6 +2283,11 @@ async def get_track_distance(track_name: str):
     except Exception as e:
         logger.error(f"Error getting distance for {track_name}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 @app.get("/api/features/distance-all")
 async def get_all_tracks_distance():
@@ -2298,6 +2308,8 @@ async def get_all_tracks_distance():
             # Use exact match to avoid track 21 matching track 210
             cursor.execute("SELECT COUNT(*) FROM image_features_4 WHERE SPLIT_PART(feature_id, '_', 1) = %s", (track_num,))
             point_count = cursor.fetchone()[0]
+            cursor.close()
+            conn.close()
             
             results.append({
                 "track_name": track_name,
@@ -2476,6 +2488,11 @@ async def get_coverage_stats(
     except Exception as e:
         logger.error(f"Error getting coverage stats: {str(e)}", exc_info=True)
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 @app.post("/api/coverage/calculate/{track_number}", dependencies=[Depends(require_admin)])
 async def calculate_track_coverage(
@@ -2882,7 +2899,7 @@ DHAKA_TZ = timezone(timedelta(hours=6))  # Asia/Dhaka (UTC+6, no DST)
 
 
 @app.post("/api/coverage/refresh", dependencies=[Depends(require_admin)])
-async def refresh_daily_coverage(body: CoverageRefreshRequest = None):
+def refresh_daily_coverage(body: CoverageRefreshRequest = None):
     """Recompute daily_track_coverage for a date range (admin only).
 
     Default range: yesterday + today in Asia/Dhaka local dates. Also assigns
@@ -3486,6 +3503,16 @@ async def process_recalculation_job(job_id: str, track_numbers: List[str]):
                     "track_number": track_num,
                     "error": str(e)
                 })
+            finally:
+                # one connection per track iteration — never leak it
+                try:
+                    conn.rollback()
+                except Exception:
+                    pass
+                try:
+                    conn.close()
+                except Exception:
+                    pass
         
         # Update final job status
         recalculate_jobs[job_id]["status"] = "completed"
@@ -3758,6 +3785,11 @@ async def get_capture_dates():
     except Exception as e:
         logger.error(f"Error getting capture dates from database: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 
@@ -3911,6 +3943,11 @@ async def get_feature_by_id(feature_id: str):
     except Exception as e:
         logger.error(f"Error getting feature {feature_id}: {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # Generate POIs
@@ -4078,7 +4115,8 @@ Take your time. Scan methodically. Include everything. Do not rush."""
         client = Together(api_key=together_api_key)
         
         # Use vision-capable model
-        response = client.chat.completions.create(
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="meta-llama/Llama-4-Maverick-17B-128E-Instruct-FP8",
             messages=[
                 {
@@ -4188,7 +4226,8 @@ Example format:
         client = Together(api_key=together_api_key)
         
         # Use vision-capable model with image URL
-        response = client.chat.completions.create(
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
             messages=[
                 {
@@ -4296,7 +4335,8 @@ Example format:
         client = Together(api_key=together_api_key)
         
         # Use vision-capable model (Llama 3.2 Vision or similar)
-        response = client.chat.completions.create(
+        response = await asyncio.to_thread(
+            client.chat.completions.create,
             model="meta-llama/Llama-3.2-90B-Vision-Instruct-Turbo",
             messages=[
                 {
@@ -4834,6 +4874,11 @@ async def get_nearest_image(
     except Exception as e:
         logger.error(f"Error finding nearest image to ({latitude}, {longitude}): {str(e)}")
         raise HTTPException(status_code=500, detail=str(e))
+    finally:
+        try:
+            conn.close()
+        except Exception:
+            pass
 
 
 # Legacy function kept for backwards compatibility
@@ -4854,7 +4899,7 @@ def start_fastapi():
 # ======================
 # STREAMING UPLOAD ENDPOINT
 # ======================
-@app.post("/api/features/upload-zip-stream")
+@app.post("/api/features/upload-zip-stream", dependencies=[Depends(require_admin)])
 async def upload_zip_stream(
     request: Request,
     zip_file: UploadFile = File(..., description="ZIP file with images")
@@ -4882,6 +4927,7 @@ async def upload_zip_stream(
 
     async def event_stream():
         """Stream SSE events"""
+        temp_dir = None
         try:
             # Get file size first
             await zip_file.seek(0, 2)
@@ -4972,7 +5018,9 @@ async def upload_zip_stream(
                         await asyncio.sleep(0)  # Force immediate flush
 
                         # Extract GPS using exiftool
-                        result = subprocess.run(
+                        # exiftool blocks — keep it off the event loop
+                        result = await asyncio.to_thread(
+                            subprocess.run,
                             ['exiftool', '-GPSLatitude', '-GPSLongitude',
                                 '-GPSLatitudeRef', '-GPSLongitudeRef',
                                 extracted_path],
@@ -5030,7 +5078,7 @@ async def upload_zip_stream(
             total_count = len(image_files)
 
             logger.info(f"Successfully extracted {gps_count} GPS coordinates from {total_count} images")
-            logger.info(f"Temp files preserved at: {temp_dir}")
+            logger.info(f"Cleaning up temp dir: {temp_dir}")
             
             # Send complete event
             yield f"event: complete\ndata: {json.dumps({'data': results, 'count': gps_count, 'gps_count': gps_count, 'total_images': total_count})}\n\n"
@@ -5038,11 +5086,17 @@ async def upload_zip_stream(
 
         except Exception as e:
             logger.error(f"Error in stream processing: {str(e)}", exc_info=True)
-            logger.info(f"Temp files preserved at: {temp_dir}")
+            logger.info(f"Cleaning up temp dir: {temp_dir}")
 
             # Send error event
             yield f"event: error\ndata: {json.dumps({'message': str(e)})}\n\n"
             await asyncio.sleep(0)  # Force immediate flush
+        finally:
+            # Always remove the extraction dir — abandoned temp trees would
+            # otherwise fill the disk over repeated uploads.
+            if temp_dir:
+                shutil.rmtree(temp_dir, ignore_errors=True)
+                logger.info(f"Temp dir removed: {temp_dir}")
 
     return StreamingResponse(
         event_stream(),
